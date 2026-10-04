@@ -1,0 +1,92 @@
+﻿:root{font-family:Inter,Arial,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;color:#182734;background:#e8eeec;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+html,body,#root{margin:0;width:100%;height:100%;overflow:hidden}
+button{font:inherit;cursor:pointer;border:0}
+button:disabled{opacity:.55;cursor:not-allowed}
+.app{position:relative;width:100%;height:100%;height:100dvh;overflow:hidden}
+.map{position:absolute;inset:0}
+.top-bar{position:absolute;z-index:3;top:calc(env(safe-area-inset-top) + 16px);left:16px;right:16px;display:flex;align-items:flex-start;gap:9px;pointer-events:none}
+.destination-button{pointer-events:auto;display:flex;align-items:center;gap:12px;min-width:0;max-width:min(370px,80vw);min-height:60px;padding:8px 15px;background:#fff;border-radius:20px;box-shadow:0 3px 16px #1d34341e;text-align:left;color:#1b2c38}
+.destination-button>span:nth-child(2){display:flex;flex-direction:column;min-width:0}
+.destination-button small{font-size:11px;color:#73848b}
+.destination-button strong{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.destination-icon{font-size:26px;color:#2369e8}
+.chevron{font-size:19px;color:#687d87;margin-left:auto}
+.mock-badge{margin-top:12px;background:#fff2df;color:#81530d;border-radius:99px;padding:6px 9px;font-size:10px;font-weight:800;white-space:nowrap}
+.map-actions{position:absolute;z-index:2;right:16px;bottom:calc(env(safe-area-inset-bottom) + 320px);display:flex;flex-direction:column;gap:9px}
+.map-actions button{display:grid;place-items:center;width:50px;height:50px;border-radius:16px;background:#fff;color:#2269e9;font-size:28px;box-shadow:0 2px 12px #172e3a24}
+.bottom-card{position:absolute;z-index:3;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);max-width:440px;margin:auto;padding:19px 20px 20px;border-radius:24px;background:#fff;box-shadow:0 8px 28px #142b3d21}
+.route-row{display:flex;align-items:baseline;gap:12px}
+.route-row.primary{font-size:18px}
+.route-row.primary strong{font-size:26px;letter-spacing:-1px}
+.route-row.secondary{margin-top:6px;color:#677983;font-size:14px}
+.route-row.secondary strong{font-size:16px}
+.route-label{width:52px;flex:none;font-size:12px;font-weight:850;letter-spacing:.06em;color:#2269e9}
+.secondary .route-label{color:#687b86}
+.arrival-time{margin:12px 0 13px;color:#6c7b84;font-size:13px}
+.arrival-time strong{color:#1a2f39;margin-left:7px}
+.mock-note{margin:0 0 12px;color:#a46c16;font-size:11px}
+.start-button,.finish-button{width:100%;min-height:54px;border-radius:16px;background:#2369e8;color:#fff;font-weight:750;font-size:17px}
+.finish-button{background:#1d2f3c}
+.empty-route{text-align:center}
+.empty-route strong{font-size:20px}
+.empty-route p{color:#7c898e;font-size:13px;margin:9px 0 20px}
+.driving-eta{position:absolute;top:calc(env(safe-area-inset-top) + 91px);left:16px;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:#fff;padding:11px 18px;border-radius:18px;box-shadow:0 3px 16px #1d34341e}
+.driving-eta strong{font-size:31px;line-height:1.1}
+.driving-eta span{font-size:14px;color:#647780}
+.speedometer{position:absolute;left:16px;bottom:calc(env(safe-area-inset-bottom) + 105px);z-index:2;width:84px;height:84px;background:#fff;border-radius:22px;box-shadow:0 3px 16px #1d34341e;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.speedometer strong{font-size:35px;line-height:1}
+.speedometer span{font-size:12px;color:#677780}
+.driving-bottom{position:absolute;z-index:2;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);max-width:440px;margin:auto}
+.arrival{background:#fff;border-radius:16px;padding:13px 18px;text-align:center;font-weight:700}
+.driving-bottom .finish-button{box-shadow:0 3px 18px #1933442f}
+.driving-bottom~.debug-toggle{bottom:calc(env(safe-area-inset-bottom) + 123px)}
+.debug-toggle{position:absolute;z-index:4;right:18px;bottom:calc(env(safe-area-inset-bottom) + 252px);min-width:48px;min-height:48px;border-radius:15px;background:#213746;color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em}
+.network-banner,.accuracy-banner,.error-banner{position:absolute;z-index:4;left:16px;right:16px;top:calc(env(safe-area-inset-top) + 88px);max-width:440px;margin:auto;padding:10px 14px;background:#243747;color:#fff;border-radius:12px;font-size:12px;text-align:center}
+.accuracy-banner{top:calc(env(safe-area-inset-top) + 126px);background:#a97020}
+.error-banner{top:calc(env(safe-area-inset-top) + 164px);display:flex;align-items:center;justify-content:center;gap:9px;background:#9f453f}
+.error-banner button{background:#fff;color:#98342c;padding:7px 10px;border-radius:9px;min-height:36px}
+.sheet-backdrop{position:absolute;inset:0;z-index:6;background:#16253080;display:flex;align-items:flex-end;justify-content:center}
+.destination-sheet,.debug-sheet{width:100%;max-width:500px;background:#fff;border-radius:25px 25px 0 0;padding:20px 20px calc(env(safe-area-inset-bottom) + 23px);box-shadow:0 -8px 28px #172f3a29}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.sheet-head strong{font-size:19px}
+.sheet-head button{width:48px;height:48px;border-radius:14px;background:#f2f5f6;color:#273a44;font-size:27px}
+.destination-option{display:flex;gap:14px;align-items:center;width:100%;min-height:69px;background:#f5f8f9;border-radius:16px;padding:10px 15px;margin:9px 0;color:#1f323d;text-align:left}
+.destination-option>span:first-child{font-size:23px;color:#2469e7}
+.destination-option>span:nth-child(2){display:flex;flex-direction:column;flex:1}
+.destination-option small{color:#85949a;font-size:11px;margin-top:3px}
+.map-pick-help{font-size:12px;color:#73848e;margin:17px 0 0}
+.debug-sheet{position:absolute;z-index:5;right:0;bottom:0;max-height:70vh;overflow:auto}
+.debug-sheet dl{margin:0}
+.debug-sheet dl>div{display:flex;justify-content:space-between;gap:15px;padding:7px 0;border-bottom:1px solid #edf1f2;font-size:13px}
+.debug-sheet dt{color:#7b8c92}
+.debug-sheet dd{margin:0;font-weight:700}
+.debug-sheet dd{overflow-wrap:anywhere;text-align:right}
+.algorithm-select{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:#70818a;margin-bottom:8px}
+.algorithm-select select{min-height:48px;max-width:65%;padding:0 12px;border:0;border-radius:12px;background:#f2f5f6;color:#203744;font:inherit;font-weight:700}
+.benchmark-fields{padding:12px;margin:8px 0 14px;border-radius:14px;background:#f5f8f9;font-size:13px}
+.benchmark-fields>strong{display:block;margin-bottom:8px}
+.benchmark-fields small{display:block;color:#74858d;font-weight:400;margin-top:3px}
+.benchmark-fields label{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px}
+.benchmark-fields label span{display:flex;align-items:center;gap:7px}
+.benchmark-fields input{width:88px;min-height:48px;padding:0 10px;border:1px solid #dce4e7;border-radius:10px;background:#fff;color:#203744;font:inherit}
+.benchmark-fields p{margin:6px 0 0;color:#9f453f}
+.current-marker{width:23px;height:23px;border:4px solid #fff;border-radius:50%;background:#2369e8;box-shadow:0 0 0 7px #2369e83d,0 2px 10px #173d6655}
+.destination-marker{width:37px;height:43px;display:grid;place-items:center;color:#fff;font-size:21px;font-weight:900;background:#e95647;border:3px solid #fff;border-radius:18px 18px 18px 2px;transform:rotate(-45deg);box-shadow:0 2px 9px #24364255}
+.destination-marker::first-letter{transform:rotate(45deg)}
+.map-error,.segment-hint{position:absolute;z-index:2;left:16px;right:16px;top:50%;padding:14px;border-radius:14px;background:#fff;color:#922;font-size:13px;text-align:center}
+.segment-hint{top:auto;bottom:350px;color:#263844;width:max-content;max-width:calc(100% - 32px)}
+.app.is-driving .map-actions{bottom:calc(env(safe-area-inset-bottom) + 195px)}
+.app.is-driving .network-banner{top:calc(env(safe-area-inset-top) + 176px)}
+.app.is-driving .accuracy-banner{top:calc(env(safe-area-inset-top) + 214px)}
+.app.is-driving .error-banner{top:calc(env(safe-area-inset-top) + 252px)}
+.maplibregl-ctrl-bottom-right{bottom:300px!important}
+@media(min-width:700px){.top-bar{left:24px;right:24px}
+.bottom-card{left:24px;right:auto;width:390px;bottom:24px}
+.map-actions{right:24px;bottom:26px}
+.debug-toggle{right:24px;bottom:145px}
+.driving-bottom{left:24px;right:auto;width:390px;bottom:24px}
+.speedometer{left:24px;bottom:112px}
+.driving-bottom~.debug-toggle{bottom:145px}
+.maplibregl-ctrl-bottom-right{bottom:0!important}
+}
