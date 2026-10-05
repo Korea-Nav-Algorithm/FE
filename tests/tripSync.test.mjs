@@ -2,14 +2,52 @@ import 'fake-indexeddb/auto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gpsStore } from '../src/features/navigation/services/gpsStore.ts';
-import { createTrip, finishTrip, recordPoint, syncTrips } from '../src/features/navigation/services/tripSync.ts';
+import { createTrip, finishTrip, recordPoint, recordReroute, syncTrips } from '../src/features/navigation/services/tripSync.ts';
+
+test('reroute ID is persisted before upload and replayed with the same trip key', async () => {
+  const previousFetch = globalThis.fetch;
+  const previousNavigator = globalThis.navigator;
+  const network = { onLine: false };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: network });
+  const rerouteRequests = [];
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/trips') {
+      const body = JSON.parse(options.body);
+      return new Response(JSON.stringify({ tripId: 'server-reroute', clientTripId: body.clientTripId }), { status: 201 });
+    }
+    if (path === '/api/trips/server-reroute/routes') {
+      rerouteRequests.push({ body: JSON.parse(options.body), key: options.headers['X-Trip-Key'] });
+      if (rerouteRequests.length === 1) throw new TypeError('response lost');
+      return new Response(null, { status: 204 });
+    }
+    return new Response(null, { status: 204 });
+  };
+  try {
+    const place = { lat: 37, lng: 127 };
+    const trip = await createTrip('initial-route', place, place, 'BASELINE', 60, 1000,
+      { tmapEtaSeconds: null, tmapDistanceMeters: null });
+    await recordReroute(trip.localId, 'reroute-1');
+    assert.equal((await gpsStore.getTrip(trip.localId)).reroutes[0].synced, false);
+    network.onLine = true;
+    await syncTrips();
+    assert.equal((await gpsStore.getTrip(trip.localId)).reroutes[0].synced, false);
+    await syncTrips();
+    assert.equal((await gpsStore.getTrip(trip.localId)).reroutes[0].synced, true);
+    assert.deepEqual(rerouteRequests[0].body, rerouteRequests[1].body);
+    assert.equal(rerouteRequests[0].key, trip.accessKey);
+    assert.equal(rerouteRequests[1].key, trip.accessKey);
+  } finally {
+    globalThis.fetch = previousFetch;
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: previousNavigator });
+  }
+});
 
 test('trip, point, and finish retries reuse persisted IDs and timing', async () => {
   const previousFetch = globalThis.fetch;
   const previousNavigator = globalThis.navigator;
   const network = { onLine: false };
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: network });
-  const requests = { trip: [], points: [], finish: [] };
+  const requests = { trip: [], points: [], finish: [], pointKeys: [], finishKeys: [] };
   globalThis.fetch = async (path, options) => {
     const body = JSON.parse(options.body);
     if (path === '/api/trips') {
@@ -18,9 +56,11 @@ test('trip, point, and finish retries reuse persisted IDs and timing', async () 
     }
     if (path === '/api/trips/server-trip/points') {
       requests.points.push(body);
+      requests.pointKeys.push(options.headers['X-Trip-Key']);
       return requests.points.length === 1 ? new Response(JSON.stringify({ pointsReceived: 0, pointsStored: 0 }), { status: 200 }) : new Response(JSON.stringify({ pointsReceived: body.points.length, pointsStored: 0 }), { status: 200 });
     }
     requests.finish.push(body);
+    requests.finishKeys.push(options.headers['X-Trip-Key']);
     if (requests.finish.length === 1) throw new TypeError('response lost');
     return new Response(null, { status: 204 });
   };
@@ -45,6 +85,8 @@ test('trip, point, and finish retries reuse persisted IDs and timing', async () 
     assert.equal((await gpsStore.getPoints())[0].synced, true);
     assert.equal(requests.trip[0].clientTripId, trip.clientTripId);
     assert.equal(requests.trip[1].clientTripId, trip.clientTripId);
+    assert.equal(requests.trip[1].accessKey, trip.accessKey);
+    assert.equal(trip.accessKey.length, 43);
     assert.equal(requests.trip[1].ourEtaSeconds, 1724);
     assert.equal(requests.trip[0].tmapEtaSeconds, 1860);
     assert.equal(requests.trip[1].tmapEtaSeconds, 1860);
@@ -53,6 +95,7 @@ test('trip, point, and finish retries reuse persisted IDs and timing', async () 
     assert.equal(requests.points[0].points[0].pointId, pointId);
     assert.equal(requests.points[1].points[0].pointId, pointId);
     assert.equal(requests.points[1].points[0].gpsSpeed, 14.8);
+    assert.deepEqual(requests.pointKeys, [trip.accessKey, trip.accessKey]);
 
     network.onLine = false;
     const finished = await finishTrip(trip);
@@ -63,6 +106,7 @@ test('trip, point, and finish retries reuse persisted IDs and timing', async () 
     await syncTrips();
     assert.equal((await gpsStore.getTrip(trip.localId)).syncedFinish, true);
     assert.deepEqual(requests.finish[0], requests.finish[1]);
+    assert.deepEqual(requests.finishKeys, [trip.accessKey, trip.accessKey]);
   } finally {
     globalThis.fetch = previousFetch;
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: previousNavigator });

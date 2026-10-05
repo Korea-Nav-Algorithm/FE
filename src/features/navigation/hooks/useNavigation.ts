@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useScreenWakeLock } from './useScreenWakeLock';
 import { NAVIGATION_CONFIG } from '../services/config';
 import { watchLocation } from '../services/geolocation';
-import { coordinateOf, distanceToRouteMeters, haversineMeters, remainingDistanceMeters, speedMetersPerSecond } from '../services/geo';
+import { coordinateOf, haversineMeters, speedMetersPerSecond } from '../services/geo';
+import { projectRouteProgress, remainingRouteSeconds, upcomingInstruction } from '../services/routeProgress';
 import { gpsStore } from '../services/gpsStore';
 import { mockMode, restoreRoute, routeProvider } from '../services/providers';
 import { parseManualBenchmark } from '../services/manualBenchmark';
-import { createTrip, finishTrip, recordPoint, subscribeSyncDiagnostics, syncTrips, type SyncDiagnostics } from '../services/tripSync';
+import { createTrip, finishTrip, recordPoint, recordReroute, subscribeSyncDiagnostics, syncTrips, type SyncDiagnostics } from '../services/tripSync';
 import { isUsableRoute } from '../services/routeValidation';
 import { ApiError, routeErrorMessage } from '../services/httpClient';
 import type { Coordinate, GpsPoint, NavigationState, RouteResult, RoutingAlgorithm, StoredTrip } from '../types/navigation';
@@ -29,11 +30,14 @@ export function useNavigation() {
   const [follow, setFollow] = useState(true);
   const [busy, setBusy] = useState(false);
   const [remainingMeters, setRemainingMeters] = useState<number | null>(null);
+  const [progressMeters, setProgressMeters] = useState(0);
+  const [progressAlongGeometryMeters, setProgressAlongGeometryMeters] = useState(0);
+  const [distanceFromRoute, setDistanceFromRoute] = useState<number | null>(null);
   const [offRouteCount, setOffRouteCount] = useState(0);
   const [rerouteCount, setRerouteCount] = useState(0);
   const [lastTrip, setLastTrip] = useState<StoredTrip | null>(null);
   const [routeApiStatus, setRouteApiStatus] = useState('IDLE');
-  const [syncDiagnostics, setSyncDiagnostics] = useState<SyncDiagnostics>({ trip: 'IDLE', points: 'IDLE', finish: 'IDLE' });
+  const [syncDiagnostics, setSyncDiagnostics] = useState<SyncDiagnostics>({ trip: 'IDLE', points: 'IDLE', routes: 'IDLE', finish: 'IDLE' });
   const tripRef = useRef<StoredTrip | null>(null);
   const pointRef = useRef<GpsPoint | null>(null);
   const previousPointRef = useRef<GpsPoint | null>(null);
@@ -45,6 +49,7 @@ export function useNavigation() {
   const routeRequestIdRef = useRef(0);
   const algorithmRef = useRef<RoutingAlgorithm>('DIRECTION_AWARE');
   const routeRef = useRef<RouteResult | null>(null);
+  const geometryProgressRef = useRef<number | null>(null);
   const destinationRef = useRef<Coordinate | null>(null);
   const stateRef = useRef<NavigationState>('LOCATING');
 
@@ -84,7 +89,12 @@ export function useNavigation() {
       const result = await routeProvider.getRoute(start, target, selectedAlgorithm);
       if (requestId !== routeRequestIdRef.current) return;
       if (!isUsableRoute(result) || result.algorithm !== selectedAlgorithm) throw new Error('Invalid route response');
+      if (isReroute && tripRef.current) await recordReroute(tripRef.current.localId, result.routeId);
+      if (requestId !== routeRequestIdRef.current) return;
       routeRef.current = result;
+      geometryProgressRef.current = null;
+      setProgressMeters(0);
+      setProgressAlongGeometryMeters(0);
       setRoute(result);
       setRouteAlgorithm(selectedAlgorithm);
       setRouteApiStatus('SUCCESS');
@@ -131,10 +141,18 @@ export function useNavigation() {
     }
     if (!currentRoute || !target) return;
     const current = coordinateOf(next);
-    setRemainingMeters(remainingDistanceMeters(current, currentRoute.geometry));
+    const projection = projectRouteProgress(current, currentRoute.geometry, geometryProgressRef.current);
+    const stableAlong = Math.max(0, Math.max((geometryProgressRef.current ?? 0) - 20, projection.alongMeters));
+    geometryProgressRef.current = stableAlong;
+    setProgressAlongGeometryMeters(stableAlong);
+    const fraction = projection.totalMeters === 0 ? 1 : Math.min(1, stableAlong / projection.totalMeters);
+    const traveledMeters = Math.round(currentRoute.distanceMeters * fraction);
+    setProgressMeters(traveledMeters);
+    setRemainingMeters(Math.max(0, currentRoute.distanceMeters - traveledMeters));
+    setDistanceFromRoute(projection.distanceFromRouteMeters);
     const hasGoodAccuracy = next.accuracy !== null && next.accuracy <= NAVIGATION_CONFIG.poorAccuracyMeters;
     if (hasGoodAccuracy && stateRef.current === 'DRIVING') {
-      if (distanceToRouteMeters(current, currentRoute.geometry) > NAVIGATION_CONFIG.rerouteDistanceMeters) deviationCountRef.current++;
+      if (projection.distanceFromRouteMeters > NAVIGATION_CONFIG.rerouteDistanceMeters) deviationCountRef.current++;
       else deviationCountRef.current = 0;
       setOffRouteCount(deviationCountRef.current);
       if (deviationCountRef.current >= NAVIGATION_CONFIG.rerouteConsecutivePoints && !reroutingRef.current) {
@@ -175,7 +193,8 @@ export function useNavigation() {
         setDestinationName('이전 주행 목적지');
         changeState('DRIVING');
         setRouteApiStatus('PENDING');
-        restoreRoute(active.routeId, active.origin, active.destination, algorithmRef.current).then((result) => { if (isUsableRoute(result) && (mockMode || result.routeId === active.routeId) && (result.algorithm === null || result.algorithm === algorithmRef.current)) { routeRef.current = result; setRoute(result); setRouteAlgorithm(result.algorithm || algorithmRef.current); setRouteApiStatus('SUCCESS'); } else { setRouteApiStatus('FAILED'); setError('경로를 복원하지 못했습니다. GPS 기록은 계속 저장됩니다.'); } }).catch(() => { setRouteApiStatus('FAILED'); setError('경로를 복원하지 못했습니다. GPS 기록은 계속 저장됩니다.'); });
+        const currentRouteId = active.reroutes?.at(-1)?.routeId || active.routeId;
+        restoreRoute(currentRouteId, active.origin, active.destination, algorithmRef.current).then((result) => { if (isUsableRoute(result) && (mockMode || result.routeId === currentRouteId) && (result.algorithm === null || result.algorithm === algorithmRef.current)) { routeRef.current = result; setRoute(result); setRouteAlgorithm(result.algorithm || algorithmRef.current); setRemainingMeters(result.distanceMeters); setRouteApiStatus('SUCCESS'); } else { setRouteApiStatus('FAILED'); setError('경로를 복원하지 못했습니다. GPS 기록은 계속 저장됩니다.'); } }).catch(() => { setRouteApiStatus('FAILED'); setError('경로를 복원하지 못했습니다. GPS 기록은 계속 저장됩니다.'); });
       }
     }).catch(() => {});
   }, [changeState]);
@@ -211,11 +230,11 @@ export function useNavigation() {
     finally { setBusy(false); }
   }, [busy, changeState, refreshCounts]);
 
-  const remainingSeconds = route && remainingMeters !== null ? Math.round(route.durationSeconds * Math.min(1, remainingMeters / Math.max(1, route.distanceMeters))) : null;
+  const remainingSeconds = route && remainingMeters !== null ? remainingRouteSeconds(route, progressAlongGeometryMeters) : null;
   const wakeLockStatus = useScreenWakeLock(state === 'DRIVING' || state === 'ARRIVED');
-  const distanceFromRoute = route && point ? distanceToRouteMeters(coordinateOf(point), route.geometry) : null;
+  const nextInstruction = route ? upcomingInstruction(route, progressMeters) : null;
   let benchmarkError: string | null = null;
   try { parseManualBenchmark(benchmarkMinutes, benchmarkKilometers); }
   catch (failure) { benchmarkError = failure instanceof Error ? failure.message : 'TMAP 벤치마크 입력을 확인해주세요.'; }
-  return { state, point, speed, destination, destinationName, route, algorithm, routeAlgorithm, selectAlgorithm, benchmarkMinutes, setBenchmarkMinutes, benchmarkKilometers, setBenchmarkKilometers, benchmarkError, error, pendingCount, totalPoints, online, follow, setFollow, busy, remainingMeters, remainingSeconds, distanceFromRoute, offRouteCount, rerouteCount, lastTrip, routeApiStatus, syncDiagnostics, wakeLockStatus, requestRoute, startDriving, stopDriving };
+  return { state, point, speed, destination, destinationName, route, algorithm, routeAlgorithm, selectAlgorithm, benchmarkMinutes, setBenchmarkMinutes, benchmarkKilometers, setBenchmarkKilometers, benchmarkError, error, pendingCount, totalPoints, online, follow, setFollow, busy, remainingMeters, remainingSeconds, distanceFromRoute, nextInstruction, offRouteCount, rerouteCount, lastTrip, routeApiStatus, syncDiagnostics, wakeLockStatus, requestRoute, startDriving, stopDriving };
 }

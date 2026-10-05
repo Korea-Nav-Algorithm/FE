@@ -18,11 +18,13 @@ export function routeErrorMessage(failure: unknown): string {
 }
 
 /** All Backend requests use same-origin /api and a fixed timeout. */
-async function requestJson<Response>(path: string, method: 'GET' | 'POST', body?: object): Promise<Response> {
+async function requestJson<Response>(path: string, method: 'GET' | 'POST', body?: object, extraHeaders: Record<string, string> = {}): Promise<Response> {
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), 12000);
   try {
-    const response = await fetch(`/api${path}`, { method, ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), signal: controller.signal });
+    const response = await fetch(`/api${path}`, { method,
+      headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...extraHeaders },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: controller.signal });
     if (!response.ok) {
       const payload = await response.json().catch(() => null) as { code?: string; error?: string | { code?: string } } | null;
       const code = typeof payload?.error === 'string' ? payload.error : payload?.error?.code || payload?.code || null;
@@ -34,5 +36,5 @@ async function requestJson<Response>(path: string, method: 'GET' | 'POST', body?
   } finally { globalThis.clearTimeout(timeout); }
 }
 
-export function postJson<Response>(path: string, body: object): Promise<Response> { return requestJson(path, 'POST', body); }
-export function getJson<Response>(path: string): Promise<Response> { return requestJson(path, 'GET'); }
+export function postJson<Response>(path: string, body: object, headers?: Record<string, string>): Promise<Response> { return requestJson(path, 'POST', body, headers); }
+export function getJson<Response>(path: string, headers?: Record<string, string>): Promise<Response> { return requestJson(path, 'GET', undefined, headers); }

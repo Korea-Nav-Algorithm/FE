@@ -1,5 +1,6 @@
 ﻿import { haversineMeters } from './geo.ts';
 import { getJson, postJson } from './httpClient.ts';
+import { routeRequestPayload } from './apiPayloads.ts';
 import type { Coordinate, RouteResult, RoutingAlgorithm } from '../types/navigation';
 
 export interface RouteProvider { getRoute(origin: Coordinate, destination: Coordinate, algorithm: RoutingAlgorithm): Promise<RouteResult> }
@@ -8,7 +9,7 @@ export const mockMode = import.meta.env?.DEV === true && import.meta.env.VITE_US
 
 export class ApiRouteProvider implements RouteProvider {
   getRoute(origin: Coordinate, destination: Coordinate, algorithm: RoutingAlgorithm): Promise<RouteResult> {
-    return postJson('/routes', { origin, destination, algorithm });
+    return postJson('/routes', routeRequestPayload(origin, destination, algorithm));
   }
 
   getSavedRoute(routeId: string): Promise<RouteResult> {

@@ -5,7 +5,9 @@
 | Method | URL | Auth | 설명 |
 | --- | --- | --- | --- |
 | POST | /api/routes | 없음 | OUR 경로 계산 |
+| GET | /api/places | 없음 | 건물·지명 검색 |
 | GET | /api/routes/{routeId} | 없음 | 저장된 OUR 경로 복원 |
 | POST | /api/trips | 없음 | 주행 생성 |
-| POST | /api/trips/{tripId}/points | 없음 | GPS point batch 저장 |
-| POST | /api/trips/{tripId}/finish | 없음 | 주행 종료 |
+| POST | /api/trips/{tripId}/points | Trip key | GPS point batch 저장 |
+| POST | /api/trips/{tripId}/routes | Trip key | 재탐색 route ID 저장 |
+| POST | /api/trips/{tripId}/finish | Trip key | 주행 종료 |

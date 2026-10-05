@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError, postJson } from '../src/features/navigation/services/httpClient.ts';
 import { ApiRouteProvider } from '../src/features/navigation/services/providers.ts';
+import { tripCreatePayload } from '../src/features/navigation/services/apiPayloads.ts';
 
 test('uses same-origin /api and accepts empty 204 finish response', async () => {
   const previousFetch = globalThis.fetch;
@@ -30,6 +31,26 @@ test('BASELINE route request keeps the selected algorithm', async () => {
   };
   try { assert.equal((await new ApiRouteProvider().getRoute({ lat: 37, lng: 127 }, { lat: 37, lng: 127 }, 'BASELINE')).routeId, 'baseline-route'); }
   finally { globalThis.fetch = previousFetch; }
+});
+
+test('destination preset metadata does not enter a route request', async () => {
+  const previousFetch = globalThis.fetch;
+  const origin = { lat: 37.292, lng: 127.043 };
+  const preset = { id: 'bundang-church', name: '분당중앙교회', lat: 37.37709, lng: 127.13973 };
+  globalThis.fetch = async (path, init) => {
+    assert.equal(path, '/api/routes');
+    assert.deepEqual(JSON.parse(init.body), { origin, destination: { lat: preset.lat, lng: preset.lng }, algorithm: 'DIRECTION_AWARE' });
+    return new Response(JSON.stringify({ routeId: 'preset-route', algorithm: 'DIRECTION_AWARE', algorithmVersion: 'v1', geometry: [origin, preset], distanceMeters: 1, durationSeconds: 1, segments: [] }), { status: 200 });
+  };
+  try { assert.equal((await new ApiRouteProvider().getRoute(origin, preset, 'DIRECTION_AWARE')).routeId, 'preset-route'); }
+  finally { globalThis.fetch = previousFetch; }
+});
+
+test('destination preset metadata does not enter a trip creation request', () => {
+  const preset = { id: 'bundang-church', name: '분당중앙교회', lat: 37.37709, lng: 127.13973 };
+  const payload = tripCreatePayload({ localId: 'trip-id', clientTripId: 'trip-id', accessKey: 'key', routeId: 'route-id', startedAt: 1,
+    origin: { lat: 37.292, lng: 127.043 }, destination: preset, ourEtaSeconds: 100, tmapEtaSeconds: null, tmapDistanceMeters: null });
+  assert.deepEqual(payload.destination, { lat: preset.lat, lng: preset.lng });
 });
 
 test('restores a saved route by ID with GET', async () => {
